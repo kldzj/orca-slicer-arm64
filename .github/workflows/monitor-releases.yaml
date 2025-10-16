@@ -25,7 +25,8 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/SoftFever/OrcaSlicer/releases" | \
-            jq -r '.[0] | {tag_name: .tag_name, prerelease: .prerelease}')
+            jq -r '.[] | select(.tag_name != "nightly-builds") | {tag_name: .tag_name, prerelease: .prerelease} | @json' | \
+            head -n 1)
           
           LATEST_RELEASE=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
           IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.prerelease')
