@@ -129,5 +129,6 @@ jobs:
             output/${{ steps.check_output.outputs.appimage_name }}.sha256
           draft: false
           prerelease: ${{ inputs.is_prerelease == 'true' }}
+          make_latest: ${{ inputs.is_prerelease != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
