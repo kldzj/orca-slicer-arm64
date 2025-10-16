@@ -7,12 +7,22 @@ on:
         description: 'OrcaSlicer version to build (e.g., 2.3.1)'
         required: true
         type: string
+      is_prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        type: string
+        default: 'false'
   workflow_call:
     inputs:
       orca_version:
         description: 'OrcaSlicer version to build'
         required: true
         type: string
+      is_prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        type: string
+        default: 'false'
 
 permissions:
   contents: write
@@ -75,9 +85,11 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ inputs.orca_version }}-arm64
-          name: OrcaSlicer v${{ inputs.orca_version }} (ARM64 Linux)
+          name: OrcaSlicer v${{ inputs.orca_version }} (ARM64 Linux)${{ inputs.is_prerelease == 'true' && ' [Pre-release]' || '' }}
           body: |
-            This is an unofficial ARM64 Linux build of [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) v${{ inputs.orca_version }}.
+            This is an unofficial ARM64 Linux build of [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) v${{ inputs.orca_version }}.${{ inputs.is_prerelease == 'true' && '
+            
+            ⚠️ **This is a pre-release build** - it may contain bugs or unstable features. Use with caution!' || '' }}
             
             ## Build Information
             - **Version**: ${{ inputs.orca_version }}
@@ -86,6 +98,7 @@ jobs:
             - **Format**: AppImage
             - **Size**: ${{ steps.check_output.outputs.size }}
             - **SHA256**: `${{ steps.check_output.outputs.checksum }}`
+            ${{ inputs.is_prerelease == 'true' && '- **Type**: Pre-release' || '- **Type**: Stable Release' }}
             
             ## Installation
             
@@ -115,6 +128,6 @@ jobs:
             output/${{ steps.check_output.outputs.appimage_name }}
             output/${{ steps.check_output.outputs.appimage_name }}.sha256
           draft: false
-          prerelease: false
+          prerelease: ${{ inputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

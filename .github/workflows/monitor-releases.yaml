@@ -20,23 +20,26 @@ jobs:
       - name: Get latest OrcaSlicer release
         id: get_release
         run: |
-          # Get the latest stable release (excluding pre-releases)
-          LATEST_RELEASE=$(curl -s \
+          # Get the latest release (including pre-releases)
+          RELEASE_INFO=$(curl -s \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/SoftFever/OrcaSlicer/releases" | \
-            jq -r '.[] | select(.prerelease == false) | .tag_name' | \
-            head -n 1)
+            jq -r '.[0] | {tag_name: .tag_name, prerelease: .prerelease}')
           
-          if [ -z "$LATEST_RELEASE" ]; then
-            echo "No stable release found"
+          LATEST_RELEASE=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
+          IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.prerelease')
+          
+          if [ -z "$LATEST_RELEASE" ] || [ "$LATEST_RELEASE" == "null" ]; then
+            echo "No release found"
             exit 1
           fi
           
           VERSION="${LATEST_RELEASE#v}"
-          echo "Latest OrcaSlicer release: $LATEST_RELEASE (version: $VERSION)"
+          echo "Latest OrcaSlicer release: $LATEST_RELEASE (version: $VERSION, prerelease: $IS_PRERELEASE)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
       
       - name: Check if ARM64 build exists
         id: check_build
@@ -63,13 +66,14 @@ jobs:
         if: steps.check_build.outputs.build_exists == 'false'
         run: |
           VERSION="${{ steps.get_release.outputs.version }}"
+          IS_PRERELEASE="${{ steps.get_release.outputs.is_prerelease }}"
           
-          echo "Triggering ARM64 build for OrcaSlicer v$VERSION"
+          echo "Triggering ARM64 build for OrcaSlicer v$VERSION (prerelease: $IS_PRERELEASE)"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-arm64.yaml/dispatches" \
-            -d "{\"ref\":\"main\",\"inputs\":{\"orca_version\":\"$VERSION\"}}"
+            -d "{\"ref\":\"main\",\"inputs\":{\"orca_version\":\"$VERSION\",\"is_prerelease\":\"$IS_PRERELEASE\"}}"
           
           echo "✅ Build workflow triggered for version $VERSION"
       
