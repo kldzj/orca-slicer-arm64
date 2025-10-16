@@ -1,0 +1,120 @@
+name: Build OrcaSlicer for ARM64
+
+on:
+  workflow_dispatch:
+    inputs:
+      orca_version:
+        description: 'OrcaSlicer version to build (e.g., 2.3.1)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      orca_version:
+        description: 'OrcaSlicer version to build'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"
+      
+      - name: Setup build environment
+        run: |
+          echo "Building OrcaSlicer v${{ inputs.orca_version }} for ARM64"
+          chmod +x scripts/build.sh
+      
+      - name: Build OrcaSlicer
+        run: |
+          ./scripts/build.sh ${{ inputs.orca_version }}
+      
+      - name: Check build output
+        id: check_output
+        run: |
+          APPIMAGE_NAME="OrcaSlicer-${{ inputs.orca_version }}-arm64-linux.AppImage"
+          VALIDATOR_NAME="OrcaSlicer_profile_validator-${{ inputs.orca_version }}-arm64-linux"
+          
+          if [ -f "output/$APPIMAGE_NAME" ]; then
+            echo "✅ Build artifacts found"
+            echo "appimage_name=$APPIMAGE_NAME" >> $GITHUB_OUTPUT
+            echo "appimage_path=output/$APPIMAGE_NAME" >> $GITHUB_OUTPUT
+            
+            # Get file size
+            SIZE=$(du -h "output/$APPIMAGE_NAME" | cut -f1)
+            echo "size=$SIZE" >> $GITHUB_OUTPUT
+            
+            # Get checksum
+            CHECKSUM=$(cat "output/${APPIMAGE_NAME}.sha256")
+            echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+            
+            # Check for validator
+            if [ -f "output/$VALIDATOR_NAME" ]; then
+              echo "✅ Profile validator found"
+              echo "validator_name=$VALIDATOR_NAME" >> $GITHUB_OUTPUT
+              echo "has_validator=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Profile validator not found (optional)"
+              echo "has_validator=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Build artifact not found"
+            exit 1
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ inputs.orca_version }}-arm64
+          name: OrcaSlicer v${{ inputs.orca_version }} (ARM64 Linux)
+          body: |
+            This is an unofficial ARM64 Linux build of [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) v${{ inputs.orca_version }}.
+            
+            ## Build Information
+            - **Version**: ${{ inputs.orca_version }}
+            - **Architecture**: ARM64 (aarch64)
+            - **Platform**: Linux
+            - **Format**: AppImage
+            - **Size**: ${{ steps.check_output.outputs.size }}
+            - **SHA256**: `${{ steps.check_output.outputs.checksum }}`
+            
+            ## Installation
+            
+            ```bash
+            # Download the AppImage
+            wget https://github.com/${{ github.repository }}/releases/download/v${{ inputs.orca_version }}-arm64/${{ steps.check_output.outputs.appimage_name }}
+            
+            # Make it executable
+            chmod +x ${{ steps.check_output.outputs.appimage_name }}
+            
+            # Run OrcaSlicer
+            ./${{ steps.check_output.outputs.appimage_name }}
+            ```
+            
+            ## Verification
+            
+            Verify the download with SHA256:
+            ```bash
+            echo "${{ steps.check_output.outputs.checksum }}" | sha256sum -c
+            ```
+            
+            ---
+            
+            **Note**: This build is automatically generated from the official OrcaSlicer source code.
+            For the official x86_64 builds, visit: https://github.com/SoftFever/OrcaSlicer/releases
+          files: |
+            output/${{ steps.check_output.outputs.appimage_name }}
+            output/${{ steps.check_output.outputs.appimage_name }}.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
